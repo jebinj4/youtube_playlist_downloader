@@ -8,13 +8,16 @@ The **YouTube Playlist Downloader** is a high-performance macOS desktop applicat
 ## 2. macOS Application & Installer Packaging
 
 ### 2.1 Native `.app` Bundle
-- **Location**: `/Volumes/External Storage SSD 1/DJ/YouTube Playlist Downloader.app`
+- **Location**: `YouTube Playlist Downloader.app`
 - **Icon**: High-resolution `AppIcon.icns` embedded in `Contents/Resources/`.
-- **Execution Model**: Runs completely silently via `Contents/MacOS/launcher` with **zero terminal window**.
+- **Self-Contained Code**: Complete application code (`app.py`, `parallel_downloader.py`, `ui/`, `requirements.txt`, `config.json`) bundled directly in `Contents/Resources/`.
+- **Execution Model**: Runs completely silently via `Contents/MacOS/launcher`.
+- **Environment Management**: Automatically creates and maintains an isolated virtual environment in `~/Library/Application Support/YouTubePlaylistDownloader/.venv`, ensuring seamless execution regardless of installation location (e.g. `/Applications` or external drives) without root permission constraints.
+- **Error Handling**: Displays native macOS alert dialogs via AppleScript if an unexpected issue occurs, logging details to `~/Library/Application Support/YouTubePlaylistDownloader/app_launch.log`.
 
 ### 2.2 Commercial `.dmg` Installer
-- **File**: `/Volumes/External Storage SSD 1/DJ/YouTube_Playlist_Downloader_v2.0.dmg`
-- **Format**: UDZO Compressed Apple Disk Image.
+- **File**: `YouTube_Playlist_Downloader_v2.0.dmg`
+- **Format**: UDZO Compressed Apple Disk Image with custom background styling and drag-to-install `/Applications` link.
 - **Workflow**: Double-clicking mounts the disk image showing the Application icon and a direct symlink to `/Applications` for standard macOS drag-and-drop installation.
 
 ---
@@ -66,15 +69,21 @@ The **YouTube Playlist Downloader** is a high-performance macOS desktop applicat
 
 ### 4.4 Application Architecture & UI
 - **Desktop Window**: `pywebview` (native macOS WebKit window) with local server fallback (`http://127.0.0.1:8765`).
+- **Responsive Fluid Layout**: Adapts dynamically across 100% of available screen width, seamlessly supporting small laptop screens up to 4K / Ultrawide displays without fixed width black borders.
+- **Top Navigation & Multi-View Architecture**:
+  - **New Playlist Tab**: Dedicated workspace for pasting URLs, selecting formats, choosing cookie auth, previewing audio tracks, and selective checkbox picking.
+  - **Active Downloads & Queue Tab**: Non-blocking background download manager featuring real-time 5-worker turbo progress bars, multi-batch job cards, transfer speeds, and Finder reveal buttons.
+  - **About Us Tab**: Company profile for **Just Rise Technologies W.L.L.** (Bahrain), with direct interactive links to website (`https://justrise.bh`), email (`info@justrise.bh`), phone (`+973 33051719`), and product specifications.
 - **Backend API Bridge**:
-  - `api.get_config()`: Retrieves save path, cookies, and preferences
+  - `api.get_config()`: Retrieves save path, cookies, and preferences (with smart fallback to `~/Music/YouTube Downloads` when external SSD is absent)
   - `api.save_config(path, format, cookies)`: Updates configuration
   - `api.select_folder()`: Native macOS folder picker dialog
   - `api.analyze_playlist(url, cookies)`: Fetches playlist metadata
   - `api.get_audio_preview(video_id, cookies)`: Fetches preview stream
-  - `api.start_download(playlist_data, options)`: Launches 5-worker download pool
+  - `api.start_download(playlist_data, options)`: Launches 5-worker download pool in background
   - `api.open_folder(path)`: Reveals directory in macOS Finder
-- **Frontend Stack**: Pro Dark Studio Theme (YouTube Red `#ff0033`, Neon Cyan `#00e5ff`, Electric Violet `#bd00ff`), Vanilla HTML5/CSS3/JavaScript.
+  - `api.open_url(url)`: Launches external links / emails in default browser or mail client
+- **Frontend Stack**: Professional Solid Dark Theme (Obsidian Black `#0b0d13`, Slate Surfaces `#12151d`, Crisp YouTube Red `#e50914`, Solid Emerald `#10b981`), Zero Gradients, Zero Neon Glows, Vanilla HTML5/CSS3/JavaScript.
 
 ---
 

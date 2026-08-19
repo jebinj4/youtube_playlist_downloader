@@ -1,19 +1,48 @@
 #!/bin/bash
 
-# Resolve the absolute directory containing the .app bundle
+# Define paths
 APP_BUNDLE_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
-BASE_DIR="$(cd "$APP_BUNDLE_DIR/.." && pwd)"
+RESOURCES_DIR="$APP_BUNDLE_DIR/Contents/Resources"
+SUPPORT_DIR="$HOME/Library/Application Support/YouTubePlaylistDownloader"
+VENV_DIR="$SUPPORT_DIR/.venv"
+LOG_FILE="$SUPPORT_DIR/app_launch.log"
 
-cd "$BASE_DIR"
+mkdir -p "$SUPPORT_DIR"
 
-# Prioritize local virtualenv
-if [ -f "$BASE_DIR/.venv/bin/python3" ]; then
-    exec "$BASE_DIR/.venv/bin/python3" "$BASE_DIR/app.py"
-elif [ -f "$APP_BUNDLE_DIR/Contents/Resources/.venv/bin/python3" ]; then
-    exec "$APP_BUNDLE_DIR/Contents/Resources/.venv/bin/python3" "$APP_BUNDLE_DIR/Contents/Resources/app.py"
-else
-    # Auto-initialize if running from a new standalone directory
-    python3 -m venv "$BASE_DIR/.venv"
-    "$BASE_DIR/.venv/bin/python3" -m pip install -q -r "$BASE_DIR/requirements.txt" 2>/dev/null
-    exec "$BASE_DIR/.venv/bin/python3" "$BASE_DIR/app.py"
+# Locate Python 3 binary on macOS
+PYTHON_BIN=""
+if command -v python3 &>/dev/null; then
+    PYTHON_BIN="$(which python3)"
+elif [ -f "/opt/homebrew/bin/python3" ]; then
+    PYTHON_BIN="/opt/homebrew/bin/python3"
+elif [ -f "/usr/local/bin/python3" ]; then
+    PYTHON_BIN="/usr/local/bin/python3"
+elif [ -f "/Library/Frameworks/Python.framework/Versions/Current/bin/python3" ]; then
+    PYTHON_BIN="/Library/Frameworks/Python.framework/Versions/Current/bin/python3"
 fi
+
+if [ -z "$PYTHON_BIN" ]; then
+    osascript -e 'display dialog "Python 3 is required to run YouTube Playlist Downloader.\n\nPlease install Python 3 or install it via Homebrew (`brew install python3`)." buttons {"OK"} default button "OK" with icon stop with title "YouTube Playlist Downloader"'
+    exit 1
+fi
+
+# Ensure virtual environment exists in Application Support
+if [ ! -f "$VENV_DIR/bin/python3" ]; then
+    osascript -e 'display notification "Configuring initial environment... This takes a few seconds." with title "YouTube Playlist Downloader"' 2>/dev/null || true
+    "$PYTHON_BIN" -m venv "$VENV_DIR" >> "$LOG_FILE" 2>&1
+    "$VENV_DIR/bin/python3" -m pip install --upgrade pip -q >> "$LOG_FILE" 2>&1
+    if [ -f "$RESOURCES_DIR/requirements.txt" ]; then
+        "$VENV_DIR/bin/python3" -m pip install -r "$RESOURCES_DIR/requirements.txt" >> "$LOG_FILE" 2>&1
+    fi
+fi
+
+# Launch the application
+cd "$RESOURCES_DIR"
+"$VENV_DIR/bin/python3" "$RESOURCES_DIR/app.py" >> "$LOG_FILE" 2>&1
+EXIT_CODE=$?
+
+if [ $EXIT_CODE -ne 0 ]; then
+    ERROR_SNIPPET=$(tail -n 6 "$LOG_FILE" 2>/dev/null | tr '\n' ' ' | sed 's/"/\\"/g')
+    osascript -e "display dialog \"The application stopped with an error:\n\n$ERROR_SNIPPET\n\nFull log: $LOG_FILE\" buttons {\"OK\"} default button \"OK\" with icon stop with title \"YouTube Playlist Downloader Error\""
+fi
+

@@ -16,11 +16,25 @@ fi
 
 rm -f "$DMG_TEMP" "$DMG_FINAL"
 
+echo "Generating Retina DMG background graphic..."
+python3 "$DIR/build_assets/generate_dmg_background.py"
+
 echo "Creating temporary DMG..."
 hdiutil create -size 300m -fs HFS+ -volname "$VOL_NAME" "$DMG_TEMP"
 
 echo "Mounting temporary DMG..."
 hdiutil attach "$DMG_TEMP" -readwrite -mountpoint "$MOUNT_DIR"
+
+# Synchronize all code and assets into the .app bundle
+RESOURCES_TARGET="$DIR/YouTube Playlist Downloader.app/Contents/Resources"
+mkdir -p "$RESOURCES_TARGET"
+cp "$DIR/app.py" "$RESOURCES_TARGET/"
+cp "$DIR/parallel_downloader.py" "$RESOURCES_TARGET/"
+cp "$DIR/requirements.txt" "$RESOURCES_TARGET/"
+cp "$DIR/config.json" "$RESOURCES_TARGET/"
+cp -R "$DIR/ui" "$RESOURCES_TARGET/"
+cp "$DIR/build_assets/AppIcon.icns" "$RESOURCES_TARGET/" 2>/dev/null || true
+chmod +x "$DIR/YouTube Playlist Downloader.app/Contents/MacOS/launcher"
 
 echo "Copying application and assets..."
 cp -R "$DIR/YouTube Playlist Downloader.app" "$MOUNT_DIR/"

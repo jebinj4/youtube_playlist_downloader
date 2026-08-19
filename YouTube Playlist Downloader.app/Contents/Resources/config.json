@@ -1,0 +1,9 @@
+{
+  "default_save_path": "/Volumes/External Storage SSD 1/DJ",
+  "default_format": "mp3_320k",
+  "browser_cookies": "none",
+  "parallel_workers": 5,
+  "embed_thumbnail": true,
+  "embed_metadata": true,
+  "auto_open_folder": true
+}

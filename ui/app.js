@@ -160,6 +160,31 @@ document.addEventListener("DOMContentLoaded", () => {
         body: JSON.stringify({ url })
       });
       return await res.json();
+    },
+    async getHistory() {
+      if (window.pywebview && window.pywebview.api && window.pywebview.api.get_history) {
+        return await window.pywebview.api.get_history();
+      }
+      const res = await fetch("/api/history");
+      return await res.json();
+    },
+    async saveHistory(historyList) {
+      if (window.pywebview && window.pywebview.api && window.pywebview.api.save_history) {
+        return await window.pywebview.api.save_history(historyList);
+      }
+      const res = await fetch("/api/history", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(historyList)
+      });
+      return await res.json();
+    },
+    async clearHistory() {
+      if (window.pywebview && window.pywebview.api && window.pywebview.api.clear_history) {
+        return await window.pywebview.api.clear_history();
+      }
+      const res = await fetch("/api/clear_history", { method: "POST" });
+      return await res.json();
     }
   };
 
@@ -500,6 +525,47 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   };
 
+  const btnClearHistory = document.getElementById("btnClearHistory");
+
+  async function loadSavedHistory() {
+    try {
+      const res = await api.getHistory();
+      if (Array.isArray(res) && res.length > 0) {
+        downloadJobs = res;
+      } else {
+        const local = localStorage.getItem("yt_downloader_history");
+        if (local) {
+          try { downloadJobs = JSON.parse(local); } catch (_) {}
+        }
+      }
+    } catch (e) {
+      const local = localStorage.getItem("yt_downloader_history");
+      if (local) {
+        try { downloadJobs = JSON.parse(local); } catch (_) {}
+      }
+    }
+    renderDownloadJobs();
+  }
+
+  function persistHistory() {
+    try {
+      localStorage.setItem("yt_downloader_history", JSON.stringify(downloadJobs));
+    } catch (_) {}
+    api.saveHistory(downloadJobs).catch(() => {});
+  }
+
+  if (btnClearHistory) {
+    btnClearHistory.addEventListener("click", async () => {
+      if (confirm("Are you sure you want to clear your download history?")) {
+        downloadJobs = [];
+        try { localStorage.removeItem("yt_downloader_history"); } catch (_) {}
+        await api.clearHistory();
+        renderDownloadJobs();
+        showToast("Download history cleared.", "info");
+      }
+    });
+  }
+
   function renderDownloadJobs() {
     if (!downloadJobsList) return;
     const activeCount = downloadJobs.filter(j => j.status === "downloading").length;
@@ -513,6 +579,10 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     if (jobsCountBadge) {
       jobsCountBadge.textContent = `${downloadJobs.length} ${downloadJobs.length === 1 ? "Batch" : "Batches"}`;
+    }
+
+    if (btnClearHistory) {
+      btnClearHistory.style.display = downloadJobs.length > 0 ? "flex" : "none";
     }
 
     if (downloadJobs.length === 0) {
@@ -529,35 +599,42 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    downloadJobsList.innerHTML = downloadJobs.map(job => `
-      <div class="download-job-card ${job.status === 'downloading' ? 'active-job' : 'completed-job'}" id="jobCard_${job.id}">
-        <div class="job-header">
-          <div class="job-title-group">
-            <span class="job-title">${escapeHtml(job.playlist_title)}</span>
-            <span class="job-badge ${job.status}">${job.status === 'downloading' ? 'Downloading (5x Turbo)' : 'Completed'}</span>
+    downloadJobsList.innerHTML = downloadJobs.map(job => {
+      const isCompleted = job.status === 'completed';
+      const formatLabel = (job.audio_format || "mp3_320k").toUpperCase().replace("_", " ");
+      const dateText = job.date_str || (job.created_at ? new Date(job.created_at).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'}) : "Recently");
+      return `
+        <div class="download-job-card ${job.status === 'downloading' ? 'active-job' : 'completed-job'}" id="jobCard_${job.id}">
+          <div class="job-header">
+            <div class="job-title-group">
+              <span class="job-title">${escapeHtml(job.playlist_title)}</span>
+              <span class="job-badge ${job.status}">${job.status === 'downloading' ? 'Downloading (5x Turbo)' : 'Completed'}</span>
+              <span class="about-spec-pill" style="padding: 2px 8px; font-size: 0.7rem;">${formatLabel}</span>
+              <span style="font-size: 0.72rem; color: var(--text-muted); font-family: var(--font-mono);">${dateText}</span>
+            </div>
+            <div class="job-actions">
+              ${job.target_dir ? `
+                <button class="btn-change-path" onclick="openJobFolder('${encodeURIComponent(job.target_dir)}')">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                  </svg>
+                  <span>Open Folder</span>
+                </button>
+              ` : ''}
+            </div>
           </div>
-          <div class="job-actions">
-            ${job.target_dir ? `
-              <button class="btn-change-path" onclick="openJobFolder('${encodeURIComponent(job.target_dir)}')">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
-                </svg>
-                <span>Open in Finder</span>
-              </button>
-            ` : ''}
+          <div class="job-progress-wrapper">
+            <div class="job-progress-bar">
+              <div class="job-progress-fill" id="jobFill_${job.id}" style="width: ${job.percent}%"></div>
+            </div>
+            <div class="job-meta-row">
+              <span id="jobStatusText_${job.id}">${job.completedCount || 0} / ${job.totalTracks || 0} Tracks ${isCompleted ? 'Downloaded' : 'Completed'}</span>
+              <span id="jobPercentText_${job.id}">${Math.round(job.percent || 0)}%</span>
+            </div>
           </div>
         </div>
-        <div class="job-progress-wrapper">
-          <div class="job-progress-bar">
-            <div class="job-progress-fill" id="jobFill_${job.id}" style="width: ${job.percent}%"></div>
-          </div>
-          <div class="job-meta-row">
-            <span id="jobStatusText_${job.id}">${job.completedCount} / ${job.totalTracks} Tracks Completed</span>
-            <span id="jobPercentText_${job.id}">${Math.round(job.percent)}%</span>
-          </div>
-        </div>
-      </div>
-    `).join("");
+      `;
+    }).join("");
   }
 
   // Start Parallel Download
@@ -576,7 +653,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const playlistTitle = currentPlaylist.playlist_title;
     const newJob = {
       id: "job_" + Date.now(),
+      created_at: Date.now(),
+      date_str: new Date().toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'}),
       playlist_title: playlistTitle,
+      audio_format: selectedFormat,
       totalTracks: selectedTracks.length,
       completedCount: 0,
       percent: 0,
@@ -586,6 +666,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     downloadJobs.unshift(newJob);
     currentActiveJob = newJob;
+    persistHistory();
     renderDownloadJobs();
 
     for (let w = 1; w <= 5; w++) {
@@ -611,11 +692,13 @@ document.addEventListener("DOMContentLoaded", () => {
       const res = await api.startDownload(payload);
       if (res && res.target_dir) {
         newJob.target_dir = res.target_dir;
+        persistHistory();
         renderDownloadJobs();
       }
     } catch (e) {
       showToast("Failed to start download.", "error");
       newJob.status = "failed";
+      persistHistory();
       renderDownloadJobs();
     }
   });
@@ -690,6 +773,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (data && data.target_dir) {
         currentActiveJob.target_dir = data.target_dir;
       }
+      persistHistory();
       renderDownloadJobs();
       showToast(`✅ "${currentActiveJob.playlist_title}" downloaded successfully!`, "success");
     }
@@ -741,6 +825,6 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   initConfig();
-  renderDownloadJobs();
+  loadSavedHistory();
 });
 

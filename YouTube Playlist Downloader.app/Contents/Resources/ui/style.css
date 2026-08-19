@@ -643,6 +643,12 @@ body {
   padding: 0 2px;
 }
 
+.jobs-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .jobs-section-title {
   font-size: 1rem;
   font-weight: 700;
@@ -657,6 +663,27 @@ body {
   padding: 3px 8px;
   border-radius: var(--radius-full);
   border: 1px solid var(--border-subtle);
+}
+
+.btn-clear-history {
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+
+.btn-clear-history:hover {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #f87171;
 }
 
 .download-jobs-list {

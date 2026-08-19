@@ -85,6 +85,29 @@ The **YouTube Playlist Downloader** is a high-performance macOS desktop applicat
   - `api.open_url(url)`: Launches external links / emails in default browser or mail client
 - **Frontend Stack**: Professional Solid Dark Theme (Obsidian Black `#0b0d13`, Slate Surfaces `#12151d`, Crisp YouTube Red `#e50914`, Solid Emerald `#10b981`), Zero Gradients, Zero Neon Glows, Vanilla HTML5/CSS3/JavaScript.
 
+### 4.5 Windows Standalone Packaging & Build Toolchain
+- **Directory**: `build_windows/`
+- **1-Click Windows Compiler**: `build_windows/build_windows_exe.bat`
+  - Initializes `.venv_win` virtual environment.
+  - Installs requirements (`yt-dlp`, `static-ffmpeg`, `mutagen`, `pywebview`, `pythonnet`, `pyinstaller`).
+  - Generates multi-resolution Windows `app_icon.ico` (256x256 down to 16x16).
+  - Runs PyInstaller with `youtube_downloader.spec` to output `dist\YouTube Playlist Downloader\YouTube_Playlist_Downloader.exe`.
+- **Inno Setup Script**: `build_windows/installer_inno_setup.iss` creates `YouTube_Playlist_Downloader_Setup_v2.0.exe` installer with Desktop and Start Menu shortcuts.
+- **Cross-Platform OS Handling**:
+  - Automatically routes paths to `%APPDATA%\YouTubePlaylistDownloader\config.json`.
+  - Automatically selects `os.startfile()` and `webbrowser.open()` when running on Windows.
+
+### 4.6 Persistent Download History Database (`history.json`)
+- **Storage Location**:
+  - **macOS**: `~/Library/Application Support/YouTubePlaylistDownloader/history.json`
+  - **Windows**: `%APPDATA%\YouTubePlaylistDownloader\history.json`
+  - **Web Cache**: `localStorage['yt_downloader_history']` for instant startup rendering.
+- **Features**:
+  - Automatically records playlist batches upon download initiation and marks them completed upon finish.
+  - Retains playlist name, creation timestamp, audio format badge, total & completed track count, and target folder path.
+  - Interactive "Open Folder" button directly reveals download destination in macOS Finder or Windows Explorer.
+  - Clean "Clear History" action with confirmation prompt.
+
 ---
 
 ## 5. Data Models

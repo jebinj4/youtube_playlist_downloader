@@ -15,11 +15,12 @@ except Exception:
     pass
 
 # Set macOS Process and Menu Bar title from 'Python' to 'YouTube Playlist Downloader'
-try:
-    from Foundation import NSProcessInfo
-    NSProcessInfo.processInfo().setProcessName_("YouTube Playlist Downloader")
-except Exception:
-    pass
+if sys.platform == "darwin":
+    try:
+        from Foundation import NSProcessInfo
+        NSProcessInfo.processInfo().setProcessName_("YouTube Playlist Downloader")
+    except Exception:
+        pass
 
 from parallel_downloader import (
     analyze_playlist,
@@ -28,9 +29,14 @@ from parallel_downloader import (
     get_track_audio_stream_url
 )
 
-SUPPORT_DIR = os.path.expanduser("~/Library/Application Support/YouTubePlaylistDownloader")
+if sys.platform == "win32":
+    SUPPORT_DIR = os.path.join(os.environ.get("APPDATA", os.path.expanduser("~")), "YouTubePlaylistDownloader")
+else:
+    SUPPORT_DIR = os.path.expanduser("~/Library/Application Support/YouTubePlaylistDownloader")
+
 USER_CONFIG_FILE = os.path.join(SUPPORT_DIR, "config.json")
 LOCAL_CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
+HISTORY_FILE = os.path.join(SUPPORT_DIR, "history.json")
 UI_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ui")
 
 # Global downloader instance
@@ -46,8 +52,43 @@ def get_active_config_path() -> str:
     return USER_CONFIG_FILE
 
 
+def load_history() -> list:
+    if os.path.exists(HISTORY_FILE):
+        try:
+            with open(HISTORY_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, list):
+                    return data
+        except Exception:
+            pass
+    return []
+
+
+def save_history_data(history_list: list) -> bool:
+    try:
+        os.makedirs(SUPPORT_DIR, exist_ok=True)
+        with open(HISTORY_FILE, "w", encoding="utf-8") as f:
+            json.dump(history_list, f, indent=2)
+        return True
+    except Exception:
+        return False
+
+
+def clear_history_data() -> bool:
+    try:
+        if os.path.exists(HISTORY_FILE):
+            os.remove(HISTORY_FILE)
+        return True
+    except Exception:
+        return False
+
+
 def load_config() -> dict:
-    default_save = "/Volumes/External Storage SSD 1/DJ" if os.path.exists("/Volumes/External Storage SSD 1/DJ") else os.path.expanduser("~/Music/YouTube Downloads")
+    if sys.platform == "win32":
+        default_save = "D:\\DJ" if os.path.exists("D:\\DJ") else os.path.join(os.path.expanduser("~"), "Music", "YouTube Downloads")
+    else:
+        default_save = "/Volumes/External Storage SSD 1/DJ" if os.path.exists("/Volumes/External Storage SSD 1/DJ") else os.path.expanduser("~/Music/YouTube Downloads")
+
     default_cfg = {
         "default_save_path": default_save,
         "default_format": "mp3_320k",
@@ -63,7 +104,7 @@ def load_config() -> dict:
             with open(cfg_path, "r", encoding="utf-8") as f:
                 saved = json.load(f)
                 default_cfg.update(saved)
-                # If the saved path doesn't exist on this Mac (e.g. external SSD not plugged in), fallback gracefully
+                # If the saved path doesn't exist on this system, fallback gracefully
                 if default_cfg.get("default_save_path") and not os.path.exists(default_cfg["default_save_path"]):
                     if not default_cfg["default_save_path"].startswith(os.path.expanduser("~")):
                         default_cfg["default_save_path"] = default_save
@@ -88,28 +129,54 @@ def save_config_file(cfg: dict) -> bool:
 
 
 def native_select_folder(initial_dir: str = "") -> str:
-    """Use native macOS AppleScript folder dialog."""
-    try:
-        cmd = """
-        osascript -e 'set chosenFolder to choose folder with prompt "Select Default Download Folder:"' -e 'POSIX path of chosenFolder'
-        """
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-        if result.returncode == 0:
-            selected = result.stdout.strip()
-            if selected:
-                return selected
-    except Exception:
-        pass
+    """Use native folder dialog for macOS and Windows."""
+    global current_window
+    if current_window:
+        try:
+            import webview
+            result = current_window.create_file_dialog(webview.FOLDER_DIALOG, directory=initial_dir)
+            if result and len(result) > 0:
+                return result[0]
+        except Exception:
+            pass
+    if sys.platform == "darwin":
+        try:
+            cmd = """osascript -e 'set chosenFolder to choose folder with prompt "Select Default Download Folder:"' -e 'POSIX path of chosenFolder'"""
+            result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+            if result.returncode == 0 and result.stdout.strip():
+                return result.stdout.strip()
+        except Exception:
+            pass
+    elif sys.platform == "win32":
+        try:
+            import tkinter as tk
+            from tkinter import filedialog
+            root = tk.Tk()
+            root.withdraw()
+            root.attributes("-topmost", True)
+            chosen = filedialog.askdirectory(title="Select Default Download Folder")
+            root.destroy()
+            if chosen:
+                return chosen
+        except Exception:
+            pass
     return ""
 
 
 def native_open_folder(folder_path: str):
-    """Open folder in macOS Finder."""
-    if folder_path and os.path.exists(folder_path):
-        subprocess.run(["open", folder_path])
-    elif folder_path:
+    """Open folder in macOS Finder or Windows Explorer."""
+    if not folder_path:
+        return
+    try:
         os.makedirs(folder_path, exist_ok=True)
-        subprocess.run(["open", folder_path])
+        if sys.platform == "win32":
+            os.startfile(folder_path)
+        elif sys.platform == "darwin":
+            subprocess.run(["open", folder_path])
+        else:
+            subprocess.run(["xdg-open", folder_path])
+    except Exception:
+        pass
 
 
 class AppAPIBridge:
@@ -185,9 +252,28 @@ class AppAPIBridge:
 
     def open_url(self, url: str):
         if url and (url.startswith("http://") or url.startswith("https://") or url.startswith("mailto:") or url.startswith("tel:")):
-            subprocess.run(["open", url])
-            return {"success": True}
+            try:
+                import webbrowser
+                webbrowser.open(url)
+                return {"success": True}
+            except Exception:
+                if sys.platform == "darwin":
+                    subprocess.run(["open", url])
+                elif sys.platform == "win32":
+                    os.startfile(url)
+                return {"success": True}
         return {"success": False}
+
+    def get_history(self):
+        return load_history()
+
+    def save_history(self, history_list):
+        save_history_data(history_list)
+        return {"success": True}
+
+    def clear_history(self):
+        clear_history_data()
+        return {"success": True}
 
 
 # Local HTTP Handler supporting static UI and REST API fallback
@@ -198,6 +284,8 @@ class CustomHTTPHandler(SimpleHTTPRequestHandler):
     def do_GET(self):
         if self.path == "/api/config":
             self.send_json_response(load_config())
+        elif self.path == "/api/history":
+            self.send_json_response(load_history())
         else:
             super().do_GET()
 
@@ -214,6 +302,12 @@ class CustomHTTPHandler(SimpleHTTPRequestHandler):
 
         if parsed.path == "/api/config":
             res = bridge.save_config(data)
+            self.send_json_response(res)
+        elif parsed.path == "/api/history":
+            res = bridge.save_history(data if isinstance(data, list) else data.get("history", []))
+            self.send_json_response(res)
+        elif parsed.path == "/api/clear_history":
+            res = bridge.clear_history()
             self.send_json_response(res)
         elif parsed.path == "/api/select_folder":
             res = bridge.select_folder()

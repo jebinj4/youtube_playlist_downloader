@@ -1,0 +1,28 @@
+# Python & Virtual Environment
+.venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+
+# Build & Temporary Files
+build/
+dist/
+*.dmg
+/tmp/
+
+# OS Specific
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+
+# Downloaded Music Directories (Keep Repo Clean)
+/Dj Tamil Remix Songs/
+/BASS BOOSTED TAMIL SONGS/
+*.mp3
+*.m4a
+*.flac
+*.wav
+*.aac

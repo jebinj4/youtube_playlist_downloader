@@ -1,0 +1,19 @@
+#!/bin/bash
+
+# Resolve the absolute directory containing the .app bundle
+APP_BUNDLE_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
+BASE_DIR="$(cd "$APP_BUNDLE_DIR/.." && pwd)"
+
+cd "$BASE_DIR"
+
+# Prioritize local virtualenv
+if [ -f "$BASE_DIR/.venv/bin/python3" ]; then
+    exec "$BASE_DIR/.venv/bin/python3" "$BASE_DIR/app.py"
+elif [ -f "$APP_BUNDLE_DIR/Contents/Resources/.venv/bin/python3" ]; then
+    exec "$APP_BUNDLE_DIR/Contents/Resources/.venv/bin/python3" "$APP_BUNDLE_DIR/Contents/Resources/app.py"
+else
+    # Auto-initialize if running from a new standalone directory
+    python3 -m venv "$BASE_DIR/.venv"
+    "$BASE_DIR/.venv/bin/python3" -m pip install -q -r "$BASE_DIR/requirements.txt" 2>/dev/null
+    exec "$BASE_DIR/.venv/bin/python3" "$BASE_DIR/app.py"
+fi
